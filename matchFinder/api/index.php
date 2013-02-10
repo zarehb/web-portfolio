@@ -141,7 +141,7 @@ function getOptions() {
 	$stmt -> execute();
 	$props = $stmt -> fetchAll(PDO::FETCH_OBJ);
 	for ($i = 0; $i < sizeof($props); $i++) {
-		$opsSql = "select *,(select @curRank := @curRank + 1 AS rank  from OPTIONS,  (SELECT @curRank := 0) r  WHERE id =  ops.id ) as rank from OPTIONS ops where propertyID = " . $props[$i] -> id;
+		$opsSql = "select *,(select @curRank := @curRank + 1 AS rank  from OPTIONS,  (SELECT @curRank := 0) r  WHERE id =  ops.id ) as rank from OPTIONS ops where property_id = " . $props[$i] -> id;
 		$stmt = $db -> prepare($opsSql);
 		$stmt -> execute();
 		$ops = $stmt -> fetchAll(PDO::FETCH_OBJ);
@@ -205,18 +205,18 @@ function saveUser() {
 			//return;
 			//$code .= $user -> options[$i]->rank;
 			
-			$sql = "INSERT INTO USER_INFO (user_id,option_id,propertyId,optionKey) VALUES(:userId,:optionId,:propId,:opkey)";
-			$key = $option -> propertyId . ":" . $option -> option_id;
+			$sql = "INSERT INTO USER_INFO (user_id,option_id,property_id,option_key) VALUES(:userId,:optionId,:propId,:opkey)";
+			$key = $option -> property_id . ":" . $option -> option_id;
 			$stmt = $db -> prepare($sql);
 			$stmt -> bindParam("userId", $_SESSION['user']);
 			$stmt -> bindParam("optionId", $option -> option_id);
-			$stmt -> bindParam("propId", $option ->  propertyId);
+			$stmt -> bindParam("propId", $option ->  property_id);
 			$stmt -> bindParam("opkey", $key );
 			$stmt -> execute();
 		}
 		
 		//TODO: for creating the keys
-		$sql = "update USER_INFO  set key = CONCAT_WS(\":\",propertyId,option_id)"; 
+		$sql = "update USER_INFO  set key = CONCAT_WS(\":\",property_id,option_id)"; 
 		 
 		$db = null;
 		echo $code;
@@ -252,16 +252,16 @@ function createNewUser() {
 			$_SESSION['user']  = $users[0]->id;
 			getUser($users[0]->id);
 		} else {
-			$sql = "INSERT INTO SITE_USER (fbId,username,firstName,lastName,gender,location,facebookInfo,email) 
-					VALUES (:fbId,:username,:first_name,:last_name,:gender,:location,:facebookInfo,:email) ";
+			$sql = "INSERT INTO SITE_USER (fbId,user_name,firstName,lastName,gender,location,facebook_info,email) 
+					VALUES (:fbId,:username,:first_name,:last_name,:gender,:location,:facebook_info,:email) ";
 			$stmt = $db -> prepare($sql);
 			$stmt -> bindParam("fbId", $id);
-			$stmt -> bindParam("username", $user->username);
+			$stmt -> bindParam("username", $user->user_name);
 			$stmt -> bindParam("first_name", $user->first_name);
 			$stmt -> bindParam("last_name", $user->last_name);
 			$stmt -> bindParam("gender", $user->gender);
 			$stmt -> bindParam("location", $user->location);
-			$stmt -> bindParam("facebookInfo", $user->facebookInfo);
+			$stmt -> bindParam("facebook_info", $user->facebook_info);
 			$stmt -> bindParam("email", $user->email);
 			$stmt -> execute();
 			$userId = $db->lastInsertId();
