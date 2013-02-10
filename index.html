@@ -1,0 +1,318 @@
+<!DOCTYPE HTML>
+<html>
+	<head></head>
+	<body>
+		<style type="text/css">
+			#container {
+				margin:0 auto;
+				width: 300px;
+				height: 200px;
+				background-color: #eee;
+				box-shadow: 2px 2px 2px gray;
+				-moz-box-shadow: 2px 2px 2px gray;
+				-webkit-box-shadow: 2px 2px 2px gray;
+				border:1px solid #000;
+				border-radius: 5px 5px;
+				padding: 20px;
+				position: relative;
+				overflow: hidden;
+			}
+			
+			.puzzleCell {
+				position: absolute;
+				background-repeat: none;
+				border: 1px solid rgba(0,0,0,1);
+				z-index: 1;
+				list-style: none;
+			}
+			
+			.selected {
+				z-index: 3;
+				box-shadow: 2px 2px 2px gray;
+				-moz-box-shadow: 2px 2px 2px gray;
+				-webkit-box-shadow: 2px 2px 2px gray;
+			}
+			
+			.correct {
+				border: 1px solid rgb(0,255,0);
+				z-index: 2;
+			}
+			
+			.inCorrect {
+				border: 1px solid rgb(255,0,0);
+				z-index: 2;
+			}
+			
+			.hint {
+				color: #3A87AD;
+				padding: 0 5px;
+			}
+			
+			#buttons {
+				background-color: #ddd;
+				border-radius: 5px; 
+				margin:10px auto;
+				width: 650px;
+				padding: 10px;
+				font-family: Arial, Helvetica, sans-serif;
+				font-size: 12px;
+				text-align: center;
+			}
+			
+		</style>
+		<ul id="container">Loading the Game...</ul>
+		<div id="buttons">
+			<button id="shuffleBtn">Shuffle</button>
+			<button id="resetBtn">Reset</button>
+			<span> Number of moves:</span>
+			<span id="moves">0</span>
+			<span class='hint'>hint: properly positioned puzzle-cells have green border, on mouse-over</span>
+		</div>
+		
+		<script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+		<script>
+			var alertFallback = true;
+			if ( typeof console === "undefined" || typeof console.log === "undefined") {
+				console = {};
+				if (alertFallback) {
+					console.log = function(msg) {
+						alert(msg);
+					};
+				} else {
+					console.log = function() {
+					};
+				}
+			}
+
+			// namespace
+			var friendsPuzzle = {};
+			
+			// in case of other type of game, another game type can be sent to constructor
+			friendsPuzzle.PuzzleEngine = function(url,container,numRows,numColumns,game) {
+				
+				if(typeof url != 'string') {
+					throw new Error('PuzzleEngine: first arg should be url');
+				}
+				if(arguments.length != 5) {
+					throw new Error('PuzzleEngineFour arguments are needed to start the game.\n1:url 2:container 3:numRows 4:numColumns 5:game object');
+				}
+				
+				var that = this;
+				this.container = container;
+				this.cells = [];
+				this.numRows = numRows;
+				this.numColumns = numColumns;
+				this.game = game;
+				this.url = url;
+				
+				// events
+				$('#shuffleBtn').click(function() { that.game.shuffle(10) });
+				$('#resetBtn').click(function() { that.game.reset() });
+				
+				this.moveHandler = function(data) {
+					$('#moves').html(data);
+					if(that.isSolved()) {
+						alert('Puzzle is solved');
+					} else {
+						console.log('is not solved');
+					}
+				};
+				
+				this.game.moveHandler = this.moveHandler;
+				
+				// loading image
+				this.image = $('<img />');
+				// image hsould be added to DOM to get the width and height
+				$('#container').append(this.image);
+				this.image.hide();
+				
+				this.image.attr('src',url).one('load',function() {
+					that.puzzleWidth = (this.width);
+					that.puzzleHeight = (this.height);
+					that.container.empty();
+					that.createPuzzle(this);
+				}).error(function() {
+					alert('can\'t load the image');
+				});
+				
+			}
+			
+			friendsPuzzle.PuzzleEngine.prototype = {
+				createPuzzle: function() {
+					var i,j;
+					friendsPuzzle.PuzzleCell.cellWidth = this.puzzleWidth/this.numColumns;
+					friendsPuzzle.PuzzleCell.cellHeight = this.puzzleHeight/this.numRows;
+					$('#container').width(this.puzzleWidth);
+					$('#container').height(this.puzzleHeight);
+					$('#container').css('padding','0');
+					for(i=0;i<this.numColumns;i++) {
+						for(j=0;j<this.numRows;j++) {
+							this.container.append(this.createCell(i,j));
+						}
+					}
+					
+					this.game.initialize();
+					this.game.shuffle(10);
+					$(".puzzleCell").css('background-image','url("'+this.url+'")');
+				},
+				createCell: function(column,row) {
+					var cell = new friendsPuzzle.PuzzleCell(column,row);
+					cell.onClick = this.game.cellClicked;
+					return cell.render().el;
+				},
+				isSolved: function() {
+					var cells = friendsPuzzle.PuzzleCell.cells;
+					for(var i = 0 ; i < cells.length ; i++ ) {
+						if(!cells[i].isCorrect()) {
+							return false;
+						}
+					}
+					return true;
+				}
+			}
+			
+			friendsPuzzle.MainGame = function() {
+				var that = this;
+				this.moves = 0;
+				this.cellClicked = function(cell) {
+					if(that.selected) {
+						cell.el.addClass('selected');
+						
+						that.swapCells(that.selected,cell,true);
+						that.moves++;
+						
+						that.moveHandler(that.moves);
+						cell.el.removeClass('selected');
+						that.selected.el.removeClass('selected');
+						
+						that.selected = null;
+					} else {
+						that.selected = cell;
+						that.selected.el.addClass('selected');
+					}
+				};
+				this.shuffle = function() {
+					var difficulty = arguments[0] || 1;
+					
+					var cells = friendsPuzzle.PuzzleCell.cells
+					,length = cells.length;
+					
+					for(var i = 0 ; i < difficulty; i++) {
+						var maxTries = 10 
+						,index1 = Math.floor((Math.random()*length))
+						,index2 = Math.floor((Math.random()*length));
+						while((index2 === index1 || cells[index1].isCorrect() || cells[index2].isCorrect()) && maxTries--) {
+							index1 = Math.floor((Math.random()*length));
+							index2 = Math.floor((Math.random()*length));
+						}
+						that.swapCells(cells[index1],cells[index2],false);
+					}
+				};
+				this.reset = function() {
+					var cells = friendsPuzzle.PuzzleCell.cells;
+					this.moves = 0;
+					for(var i = 0; i < cells.length; i++ ) {
+						cells[i].reset();
+					}
+				} 
+				
+			}
+			
+			friendsPuzzle.MainGame.prototype = {
+				initialize: function() {
+				},
+				start: function() {
+					
+				},
+				pause: function() {
+					
+				},
+				swapCells: function(cell1,cell2,animated) {
+					var position = cell1.getPosition();
+					cell1.setPosition(cell2.getPosition(),animated);
+					cell2.setPosition(position,animated);
+				}
+			}
+			
+			
+			friendsPuzzle.PuzzleCell = function(column,row) {
+					arguments.callee.cells = arguments.callee.cells || [];
+					arguments.callee.cells.push(this);
+					var that = this;
+					// row and column are private so game can't set them explicitly
+					var column = column;
+					var row = row;
+					this.targetName = '<li/>';
+					
+					var offsetX = column * friendsPuzzle.PuzzleCell.cellWidth;
+					var offsetY = row * friendsPuzzle.PuzzleCell.cellHeight;
+					this.animating = false;
+					this.render = function() {
+						var that = this;
+						this.el = $(this.targetName).css('background-position',-offsetX+'px ' + -offsetY+'px').
+						width(friendsPuzzle.PuzzleCell.cellWidth).height(friendsPuzzle.PuzzleCell.cellHeight).
+						css('left',offsetX+'px').css('top',offsetY+'px').attr('data-role',column+','+row).addClass('puzzleCell')
+						
+						this.el.hover(function() {
+							if(that.isCorrect()) {
+								that.el.addClass('correct').removeClass('inCorrect');
+							} else {
+								that.el.addClass('inCorrect').removeClass('correct');
+							}
+						},
+						function() {
+							that.el.removeClass('correct').removeClass('inCorrect');
+						});
+						
+						
+						if(typeof this.onClick != 'function') {
+							throw new Error('PuzzleCell: onClick method should be passed before calling render');
+						}
+						this.el.click(function() { that.onClick(that); })
+						return this;
+					};
+					this.setPosition = function(position,animate) {
+						row = position.row;
+						column = position.column;
+						var offsetX = column * friendsPuzzle.PuzzleCell.cellWidth;
+						var offsetY = row * friendsPuzzle.PuzzleCell.cellHeight;
+						this.animating = true;
+						var duration = animate ? 300 : 0;
+						this.el.animate({left: offsetX, top: offsetY},duration, function() {that.animating = false;});
+					};
+					this.isCorrect = function() {
+						if(this.el.attr('data-role') === column + ',' + row) {
+							return true;
+						}	
+					};
+					this.getPosition = function() {
+						return ({row: row, column: column});
+					};
+			};
+			
+			friendsPuzzle.PuzzleCell.prototype = {
+				reset: function() {
+					var position = this.el.attr('data-role').split(',');
+					this.setPosition({column: position[0],row: position[1]});	
+				}
+			}
+			
+			
+			
+			// on document ready start puzzle
+			$(function() {
+				try {
+					var url = 'http://blogs.plos.org/everyone/files/2009/07/coral-reef-image-from-pone0002429.jpg';
+					var game = new friendsPuzzle.PuzzleEngine(url,$('#container'),5,5,new friendsPuzzle.MainGame());
+				}
+				catch(error) {
+					alert(error.message);
+				}
+				
+			})
+			
+			
+			
+		</script>
+	</body>
+</html>
